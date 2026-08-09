@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finanzas · Tap & Stock</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#E8A33D"/></svg>
+      Tap &amp; Stock
+    </div>
+    <nav class="nav">
+      <a href="inventario.html">Inventario</a>
+      <a href="pos.html">Punto de venta</a>
+      <a href="finanzas.html" class="active">Finanzas</a>
+    </nav>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      <h2 style="margin:0;">Rango de fechas</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" onclick="setRango('hoy')">Hoy</button>
+        <button class="btn btn-outline btn-sm" onclick="setRango('semana')">Últimos 7 días</button>
+        <button class="btn btn-outline btn-sm" onclick="setRango('mes')">Últimos 30 días</button>
+        <button class="btn btn-outline btn-sm" onclick="setRango('todo')">Todo</button>
+        <button class="btn btn-amber btn-sm" onclick="renderTodo()">Actualizar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-3" style="margin-top:18px;">
+    <div class="kpi"><div class="label">Ingresos</div><div class="value mono" id="kpi-ingresos">S/ 0.00</div></div>
+    <div class="kpi"><div class="label">Ganancia</div><div class="value mono up" id="kpi-ganancia">S/ 0.00</div></div>
+    <div class="kpi"><div class="label">Ventas realizadas</div><div class="value mono" id="kpi-ventas">0</div></div>
+  </div>
+  <div class="grid grid-3" style="margin-top:14px;">
+    <div class="kpi"><div class="label">Ticket promedio</div><div class="value mono" id="kpi-promedio">S/ 0.00</div></div>
+    <div class="kpi"><div class="label">Unidades vendidas</div><div class="value mono" id="kpi-unidades">0</div></div>
+    <div class="kpi"><div class="label">Producto más vendido</div><div class="value" id="kpi-top" style="font-size:1.1rem;">—</div></div>
+  </div>
+
+  <div class="grid grid-2" style="margin-top:18px;align-items:start;">
+    <div class="panel">
+      <h2 style="margin-top:0;">Ingresos por día</h2>
+      <canvas id="chart-ingresos" height="220"></canvas>
+    </div>
+    <div class="panel">
+      <h2 style="margin-top:0;">Productos más vendidos</h2>
+      <canvas id="chart-productos" height="220"></canvas>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px;">
+    <h2 style="margin-top:0;">Métodos de pago</h2>
+    <canvas id="chart-pagos" height="120"></canvas>
+  </div>
+
+  <div class="panel" style="margin-top:18px;">
+    <h2 style="margin-top:0;">Historial de ventas</h2>
+    <p class="hint" style="margin-top:-8px;margin-bottom:14px;">
+      Aquí se listan todas las ventas, incluidas las anuladas y las marcadas como "No pagó".
+      Los ingresos y gráficos de arriba solo cuentan las ventas activas (pagadas).
+    </p>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr><th>Ticket</th><th>Fecha</th><th>Items</th><th>Total</th><th>Pago</th><th>Estado</th><th></th><th></th></tr>
+        </thead>
+        <tbody id="tabla-ventas"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p class="footer-note">Tap &amp; Stock — métricas financieras para Punto Escolar</p>
+</div>
+
+<!-- Modal edición de venta -->
+<div id="modal-editar" class="modal-overlay" style="display:none;">
+  <div class="modal-box modal-box-lg">
+    <h2 style="margin-top:0;">Editar venta <span id="edit-ticket-num" class="mono"></span></h2>
+    <p class="hint">Corrige cantidades, precio, método de pago o marca la venta si el cliente no pagó. Los cambios de cantidad ajustan el stock automáticamente.</p>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="edit-estado">Estado</label>
+        <select id="edit-estado">
+          <option value="activo">Activo (pagado)</option>
+          <option value="pendiente">No pagó / pendiente</option>
+          <option value="anulado">Anulado</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="edit-metodo">Método de pago</label>
+        <select id="edit-metodo">
+          <option>Efectivo</option>
+          <option>Yape</option>
+          <option>Plin</option>
+          <option>Tarjeta</option>
+          <option>Transferencia</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Productos de esta venta</label>
+      <table>
+        <thead><tr><th>Producto</th><th>Cant.</th><th>Precio unit.</th><th>Subtotal</th><th></th></tr></thead>
+        <tbody id="edit-items"></tbody>
+      </table>
+    </div>
+
+    <div class="field">
+      <label for="edit-nota">Motivo del cambio (opcional, queda registrado)</label>
+      <textarea id="edit-nota" rows="2" placeholder="Ej. cliente no pagó, se corrigió cantidad, error de cobro..."></textarea>
+    </div>
+
+    <div class="total-row">
+      <span>Nuevo total</span>
+      <span class="amount mono" id="edit-total">S/ 0.00</span>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-amber" style="flex:1;" onclick="guardarEdicion()">Guardar cambios</button>
+      <button class="btn btn-outline" style="flex:1;" onclick="cerrarEdicion()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/store.js"></script>
+<script>
+let rangoActual = 'mes';
+let chartIngresos, chartProductos, chartPagos;
+
+function ventasEnRango() {
+  const ahora = new Date();
+  let desde = null;
+  if (rangoActual === 'hoy') {
+    desde = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  } else if (rangoActual === 'semana') {
+    desde = new Date(ahora.getTime() - 7 * 24 * 3600 * 1000);
+  } else if (rangoActual === 'mes') {
+    desde = new Date(ahora.getTime() - 30 * 24 * 3600 * 1000);
+  }
+  return Store.getVentas().filter(v => {
+    if (v.estado === 'anulado' || v.estado === 'pendiente') return false;
+    if (!desde) return true;
+    return new Date(v.fecha) >= desde;
+  });
+}
+
+function setRango(r) {
+  rangoActual = r;
+  document.querySelectorAll('.nav + .panel .btn-outline').forEach(b => {}); // noop, kept simple
+  renderTodo();
+}
+
+function renderKPIs(ventas) {
+  const ingresos = ventas.reduce((s, v) => s + v.total, 0);
+  const ganancia = ventas.reduce((s, v) => s + (v.ganancia ?? 0), 0);
+  const unidades = ventas.reduce((s, v) => s + v.items.reduce((a, i) => a + i.cantidad, 0), 0);
+  document.getElementById('kpi-ingresos').textContent = Store.formatMoney(ingresos);
+  document.getElementById('kpi-ganancia').textContent = Store.formatMoney(ganancia);
+  document.getElementById('kpi-ventas').textContent = ventas.length;
+  document.getElementById('kpi-promedio').textContent = Store.formatMoney(ventas.length ? ingresos / ventas.length : 0);
+  document.getElementById('kpi-unidades').textContent = unidades;
+
+  const conteoProductos = {};
+  ventas.forEach(v => v.items.forEach(i => {
+    conteoProductos[i.nombre] = (conteoProductos[i.nombre] || 0) + i.cantidad;
+  }));
+  const topEntry = Object.entries(conteoProductos).sort((a, b) => b[1] - a[1])[0];
+  document.getElementById('kpi-top').textContent = topEntry ? `${topEntry[0]} (${topEntry[1]} u.)` : '—';
+  return conteoProductos;
+}
+
+function renderChartIngresos(ventas) {
+  const porDia = {};
+  ventas.forEach(v => {
+    const dia = new Date(v.fecha).toLocaleDateString('es-PE', { day: '2-digit', month: '2-digit' });
+    porDia[dia] = (porDia[dia] || 0) + v.total;
+  });
+  const labels = Object.keys(porDia);
+  const datos = Object.values(porDia);
+  if (chartIngresos) chartIngresos.destroy();
+  chartIngresos = new Chart(document.getElementById('chart-ingresos'), {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'Ingresos (S/)', data: datos, borderColor: '#E8A33D', backgroundColor: 'rgba(232,163,61,.15)', fill: true, tension: .3 }] },
+    options: { plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#a89a86' }, grid: { color: '#3a3024' } }, y: { ticks: { color: '#a89a86' }, grid: { color: '#3a3024' } } } }
+  });
+}
+
+function renderChartProductos(conteoProductos) {
+  const ordenado = Object.entries(conteoProductos).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  if (chartProductos) chartProductos.destroy();
+  chartProductos = new Chart(document.getElementById('chart-productos'), {
+    type: 'bar',
+    data: { labels: ordenado.map(o => o[0]), datasets: [{ label: 'Unidades vendidas', data: ordenado.map(o => o[1]), backgroundColor: '#C1682F' }] },
+    options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#a89a86' }, grid: { color: '#3a3024' } }, y: { ticks: { color: '#a89a86' }, grid: { display: false } } } }
+  });
+}
+
+function renderChartPagos(ventas) {
+  const porMetodo = {};
+  ventas.forEach(v => { porMetodo[v.metodoPago] = (porMetodo[v.metodoPago] || 0) + v.total; });
+  if (chartPagos) chartPagos.destroy();
+  chartPagos = new Chart(document.getElementById('chart-pagos'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(porMetodo),
+      datasets: [{ data: Object.values(porMetodo), backgroundColor: ['#E8A33D', '#C1682F', '#6f8f5f', '#a89a86', '#c1543f'] }]
+    },
+    options: { plugins: { legend: { position: 'right', labels: { color: '#F4EDE0' } } } }
+  });
+}
+
+function renderTablaVentas() {
+  const ventas = [...Store.getVentas()].reverse();
+  const tbody = document.getElementById('tabla-ventas');
+  if (!ventas.length) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px 8px;">
+      Aún no se registran ventas en este navegador.<br>
+      <span class="hint">Si ya cobraste una venta en pos.html y no aparece aquí, revisa que estés usando el mismo navegador y la misma forma de abrir el sitio (http:// o la URL publicada, no un archivo abierto por separado).</span>
+    </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = ventas.map(v => `
+    <tr>
+      <td class="mono">#${String(v.numeroTicket).padStart(5, '0')}</td>
+      <td>${Store.formatFecha(v.fecha)}</td>
+      <td>${v.items.reduce((s, i) => s + i.cantidad, 0)} u.</td>
+      <td class="mono">${Store.formatMoney(v.total)}</td>
+      <td>${v.metodoPago}</td>
+      <td><span class="tag ${v.estado}">${etiquetaEstado(v.estado)}</span></td>
+      <td><button class="btn btn-outline btn-sm" onclick="abrirEdicion('${v.id}')">Editar</button></td>
+      <td>${v.estado === 'anulado' ? '' : `<button class="btn btn-danger btn-sm" onclick="anular('${v.id}')">Anular</button>`}</td>
+    </tr>
+  `).join('');
+}
+
+function etiquetaEstado(estado) {
+  if (estado === 'anulado') return 'Anulado';
+  if (estado === 'pendiente') return 'No pagó';
+  return 'Activo';
+}
+
+function anular(id) {
+  if (!confirm('¿Anular esta venta? El stock de los productos se repondrá automáticamente.')) return;
+  Store.anularVenta(id);
+  renderTodo();
+}
+
+function renderTodo() {
+  const ventas = ventasEnRango();
+  const conteo = renderKPIs(ventas);
+
+  // La tabla de ventas y los KPIs son lo esencial: se muestran siempre,
+  // pase lo que pase con los gráficos (por ejemplo si Chart.js no cargó).
+  renderTablaVentas();
+
+  if (typeof Chart === 'undefined') {
+    console.warn('Chart.js no está disponible; se omiten los gráficos pero la tabla y los KPIs siguen funcionando.');
+    return;
+  }
+  try { renderChartIngresos(ventas); } catch (err) { console.warn('Error en gráfico de ingresos:', err); }
+  try { renderChartProductos(conteo); } catch (err) { console.warn('Error en gráfico de productos:', err); }
+  try { renderChartPagos(ventas); } catch (err) { console.warn('Error en gráfico de pagos:', err); }
+}
+
+let ventaEnEdicion = null; // copia de trabajo de los items
+
+function abrirEdicion(id) {
+  const venta = Store.getVentas().find(v => v.id === id);
+  if (!venta) return;
+  ventaEnEdicion = { ...venta, items: venta.items.map(i => ({ ...i })) };
+  document.getElementById('edit-ticket-num').textContent = '#' + String(venta.numeroTicket).padStart(5, '0');
+  document.getElementById('edit-estado').value = venta.estado || 'activo';
+  document.getElementById('edit-metodo').value = venta.metodoPago;
+  document.getElementById('edit-nota').value = venta.nota || '';
+  renderItemsEdicion();
+  document.getElementById('modal-editar').style.display = 'flex';
+}
+
+function renderItemsEdicion() {
+  const tbody = document.getElementById('edit-items');
+  tbody.innerHTML = ventaEnEdicion.items.map((i, idx) => {
+    const { subtotal, desglose } = Store.calcularVentaConEmpaques(i.cantidad, i.precioUnit, empaquesDe(i));
+    const tienePromo = i.precioPack || i.precioCaja || i.precioPromo;
+    return `
+    <tr>
+      <td>${i.nombre}${tienePromo ? `<br><span class="hint">${desglose}</span>` : ''}</td>
+      <td><input type="number" min="0" step="1" value="${i.cantidad}" style="width:70px;" oninput="cambiarCantidadEdicion(${idx}, this.value)"></td>
+      <td><input type="number" min="0" step="0.10" value="${i.precioUnit}" style="width:90px;" oninput="cambiarPrecioEdicion(${idx}, this.value)"></td>
+      <td class="mono">${Store.formatMoney(subtotal)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="quitarItemEdicion(${idx})">×</button></td>
+    </tr>
+  `;
+  }).join('') || '<tr><td colspan="5" class="hint">Esta venta ya no tiene productos.</td></tr>';
+  actualizarTotalEdicion();
+}
+
+function cambiarCantidadEdicion(idx, valor) {
+  ventaEnEdicion.items[idx].cantidad = Math.max(0, parseInt(valor, 10) || 0);
+  renderItemsEdicion();
+}
+function cambiarPrecioEdicion(idx, valor) {
+  ventaEnEdicion.items[idx].precioUnit = Math.max(0, parseFloat(valor) || 0);
+  renderItemsEdicion();
+}
+function quitarItemEdicion(idx) {
+  ventaEnEdicion.items.splice(idx, 1);
+  renderItemsEdicion();
+}
+function actualizarTotalEdicion() {
+  const total = ventaEnEdicion.items.reduce((s, i) => s + Store.calcularVentaConEmpaques(i.cantidad, i.precioUnit, empaquesDe(i)).subtotal, 0);
+  document.getElementById('edit-total').textContent = Store.formatMoney(total);
+}
+
+function guardarEdicion() {
+  if (!ventaEnEdicion) return;
+  const original = Store.getVentas().find(v => v.id === ventaEnEdicion.id);
+
+  // Repone o descuenta stock según la diferencia entre cantidad original y la nueva
+  original.items.forEach(itemOriginal => {
+    const itemNuevo = ventaEnEdicion.items.find(i => i.productoId === itemOriginal.productoId);
+    const cantidadNueva = itemNuevo ? itemNuevo.cantidad : 0;
+    const diferencia = itemOriginal.cantidad - cantidadNueva; // positivo = repone stock
+    if (diferencia !== 0) Store.ajustarStock(itemOriginal.productoId, diferencia);
+  });
+
+  ventaEnEdicion.items = ventaEnEdicion.items.map(i => {
+    const { subtotal, desglose } = Store.calcularVentaConEmpaques(i.cantidad, i.precioUnit, empaquesDe(i));
+    return { ...i, subtotal, desglose };
+  });
+  const total = ventaEnEdicion.items.reduce((s, i) => s + i.subtotal, 0);
+  const costoTotal = ventaEnEdicion.items.reduce((s, i) => s + (i.costo || 0) * i.cantidad, 0);
+
+  const ventaActualizada = {
+    ...ventaEnEdicion,
+    total,
+    costoTotal,
+    ganancia: total - costoTotal,
+    metodoPago: document.getElementById('edit-metodo').value,
+    estado: document.getElementById('edit-estado').value,
+    nota: document.getElementById('edit-nota').value.trim(),
+    editado: new Date().toISOString()
+  };
+  Store.actualizarVenta(ventaActualizada);
+  ventaEnEdicion = null;
+  cerrarEdicion();
+  renderTodo();
+}
+
+function cerrarEdicion() {
+  document.getElementById('modal-editar').style.display = 'none';
+}
+
+onDatosCambiaron(renderTodo);
+window.addEventListener('pageshow', renderTodo); // por si el navegador restaura la página desde su caché (botón atrás)
+renderTodo();
+</script>
+</body>
+</html>

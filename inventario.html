@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventario · Tap & Stock</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#E8A33D"/></svg>
+      Tap &amp; Stock
+    </div>
+    <nav class="nav">
+      <a href="inventario.html" class="active">Inventario</a>
+      <a href="pos.html">Punto de venta</a>
+      <a href="finanzas.html">Finanzas</a>
+    </nav>
+  </div>
+
+  <div class="grid grid-2" style="align-items:start;">
+
+    <div class="panel">
+      <h2 id="form-title" style="margin-top:0;">Nuevo producto</h2>
+      <form id="form-producto">
+        <input type="hidden" id="p-id">
+
+        <div class="field">
+          <label for="p-nombre">Nombre</label>
+          <input id="p-nombre" required placeholder="Ej. IPA Cusqueña 330ml">
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="p-categoria">Categoría</label>
+            <select id="p-categoria">
+              <option>Lager</option>
+              <option>IPA</option>
+              <option>Stout</option>
+              <option>Trigo</option>
+              <option>Artesanal</option>
+              <option>Otro</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="p-stock">Stock inicial / actual</label>
+            <input id="p-stock" type="number" min="0" step="1" required value="0">
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="p-precio">Precio por unidad / lata (S/)</label>
+            <input id="p-precio" type="number" min="0" step="0.10" required>
+          </div>
+          <div class="field">
+            <label for="p-costo">Costo unitario (S/)</label>
+            <input id="p-costo" type="number" min="0" step="0.10" required>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="p-preciopack">Precio por six-pack (S/, opcional)</label>
+            <input id="p-preciopack" type="number" min="0" step="0.10" placeholder="Déjalo vacío si no aplica">
+          </div>
+          <div class="field">
+            <label for="p-unidadespack">Unidades por pack</label>
+            <input id="p-unidadespack" type="number" min="2" step="1" value="6">
+          </div>
+        </div>
+        <p class="hint" style="margin-top:-8px;">
+          Si cargas el precio del six-pack, en el punto de venta se cobrará automáticamente
+          el precio de pack cada vez que la cantidad alcance ese número de unidades
+          (ej. 6 latas = 1 six-pack, 7 latas = 1 six-pack + 1 lata suelta).
+        </p>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="p-preciocaja">Precio por caja (S/, opcional)</label>
+            <input id="p-preciocaja" type="number" min="0" step="0.10" placeholder="Déjalo vacío si no aplica">
+          </div>
+          <div class="field">
+            <label for="p-unidadescaja">Unidades por caja</label>
+            <input id="p-unidadescaja" type="number" min="2" step="1" value="12">
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="p-preciopromo">Precio promo (S/, opcional)</label>
+            <input id="p-preciopromo" type="number" min="0" step="0.10" placeholder="Déjalo vacío si no aplica">
+          </div>
+          <div class="field">
+            <label for="p-unidadespromo">Unidades para la promo</label>
+            <input id="p-unidadespromo" type="number" min="2" step="1" placeholder="Ej. 12, 36...">
+          </div>
+        </div>
+        <p class="hint" style="margin-top:-8px;">
+          Usa "Promo" para cualquier oferta especial por volumen: ej. 12 vinos a un precio especial,
+          o 3 cajas de cerveza (36 unidades) a un precio de mayoreo. El punto de venta siempre aplica
+          primero el empaque que junte más unidades, luego el siguiente, y el resto se cobra por
+          unidad suelta.
+        </p>
+
+        <div class="field">
+          <label for="p-stockmin">Stock mínimo (alerta)</label>
+          <input id="p-stockmin" type="number" min="0" step="1" value="6">
+        </div>
+
+        <div class="field">
+          <label for="p-imagen">Foto del producto</label>
+          <input id="p-imagen" type="file" accept="image/*">
+          <p class="hint">Al subir una foto, el color de identificación se sugiere automáticamente según el color dominante de la imagen. Puedes ajustarlo.</p>
+        </div>
+
+        <div class="field">
+          <label for="p-color">Color de identificación (chapa)</label>
+          <input id="p-color" type="color" value="#C1682F">
+          <div class="color-preview">
+            <div id="cap-preview"></div>
+            <span class="hint">Así se verá en el punto de venta</span>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:6px;">
+          <button type="submit" class="btn btn-amber">Guardar producto</button>
+          <button type="button" id="btn-cancelar" class="btn btn-outline" style="display:none;">Cancelar edición</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0;">Ajuste rápido de stock</h2>
+      <p class="hint" style="margin-bottom:14px;">Usa esto para registrar reposición de mercadería o mermas, sin pasar por una venta.</p>
+      <div class="field">
+        <label for="ajuste-producto">Producto</label>
+        <select id="ajuste-producto"></select>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="ajuste-cantidad">Cantidad</label>
+          <input id="ajuste-cantidad" type="number" step="1" value="1">
+        </div>
+        <div class="field">
+          <label for="ajuste-costo">Costo de esta compra (S/, opcional)</label>
+          <input id="ajuste-costo" type="number" min="0" step="0.10" placeholder="Solo si cambió el precio">
+        </div>
+      </div>
+      <p class="hint" style="margin-top:-8px;">
+        Si tu proveedor te cambia el precio (ej. esta semana el six-pack te salió a S/26 en vez de S/25.50),
+        pon aquí el costo de esta compra al hacer "Ingreso". El sistema recalcula el costo promedio del
+        producto automáticamente y guarda el historial de precios de compra.
+      </p>
+      <div style="display:flex;gap:8px;">
+        <button id="btn-sumar" class="btn btn-outline" style="flex:1;">+ Ingreso</button>
+        <button id="btn-restar" class="btn btn-outline" style="flex:1;">− Merma</button>
+      </div>
+      <p id="ajuste-msg" class="hint"></p>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px;">
+    <h2 style="margin-top:0;">Historial de compras (costos del proveedor)</h2>
+    <p class="hint" style="margin-bottom:14px;">Aquí ves cómo fue variando el precio de cada ingreso de stock, para detectar subidas o bajadas del proveedor.</p>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>Fecha</th><th>Producto</th><th>Cantidad</th><th>Costo unit.</th><th>Costo promedio resultante</th></tr></thead>
+        <tbody id="tabla-compras"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:18px;">
+    <h2 style="margin-top:0;">Catálogo (<span id="conteo">0</span> productos)</h2>
+    <div id="catalogo" class="product-grid"></div>
+  </div>
+
+  <p class="footer-note">Tap &amp; Stock — inventario para Punto Escolar · datos guardados en este navegador</p>
+</div>
+
+<script src="js/store.js"></script>
+<script>
+let colorEditadoManualmente = false;
+
+function renderCapPreview() {
+  const color = document.getElementById('p-color').value;
+  document.getElementById('cap-preview').innerHTML = capSVG(color, 40);
+}
+document.getElementById('p-color').addEventListener('input', () => {
+  colorEditadoManualmente = true;
+  renderCapPreview();
+});
+renderCapPreview();
+
+let imagenBase64 = null;
+document.getElementById('p-imagen').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    imagenBase64 = ev.target.result;
+    const img = new Image();
+    img.onload = () => {
+      if (!colorEditadoManualmente) {
+        document.getElementById('p-color').value = colorDominante(img);
+        renderCapPreview();
+      }
+    };
+    img.src = imagenBase64;
+  };
+  reader.readAsDataURL(file);
+});
+
+function limpiarFormulario() {
+  document.getElementById('form-producto').reset();
+  document.getElementById('p-id').value = '';
+  document.getElementById('form-title').textContent = 'Nuevo producto';
+  document.getElementById('btn-cancelar').style.display = 'none';
+  document.getElementById('p-color').value = '#C1682F';
+  document.getElementById('p-unidadespack').value = '6';
+  document.getElementById('p-unidadescaja').value = '12';
+  imagenBase64 = null;
+  colorEditadoManualmente = false;
+  renderCapPreview();
+}
+
+document.getElementById('form-producto').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const id = document.getElementById('p-id').value || Store.uid();
+  const existente = Store.getProducto(id);
+  const producto = {
+    id,
+    nombre: document.getElementById('p-nombre').value.trim(),
+    categoria: document.getElementById('p-categoria').value,
+    stock: parseInt(document.getElementById('p-stock').value, 10) || 0,
+    precioVenta: parseFloat(document.getElementById('p-precio').value) || 0,
+    costo: parseFloat(document.getElementById('p-costo').value) || 0,
+    precioPack: parseFloat(document.getElementById('p-preciopack').value) || 0,
+    unidadesPorPack: parseInt(document.getElementById('p-unidadespack').value, 10) || 6,
+    precioCaja: parseFloat(document.getElementById('p-preciocaja').value) || 0,
+    unidadesPorCaja: parseInt(document.getElementById('p-unidadescaja').value, 10) || 12,
+    precioPromo: parseFloat(document.getElementById('p-preciopromo').value) || 0,
+    unidadesPromo: parseInt(document.getElementById('p-unidadespromo').value, 10) || 0,
+    stockMin: parseInt(document.getElementById('p-stockmin').value, 10) || 0,
+    color: document.getElementById('p-color').value,
+    imagen: imagenBase64 || (existente ? existente.imagen : null),
+    creado: existente ? existente.creado : new Date().toISOString()
+  };
+  Store.upsertProducto(producto);
+  limpiarFormulario();
+  renderCatalogo();
+  renderSelectAjuste();
+});
+
+document.getElementById('btn-cancelar').addEventListener('click', limpiarFormulario);
+
+function editarProducto(id) {
+  const p = Store.getProducto(id);
+  if (!p) return;
+  document.getElementById('p-id').value = p.id;
+  document.getElementById('p-nombre').value = p.nombre;
+  document.getElementById('p-categoria').value = p.categoria;
+  document.getElementById('p-stock').value = p.stock;
+  document.getElementById('p-precio').value = p.precioVenta;
+  document.getElementById('p-costo').value = p.costo;
+  document.getElementById('p-preciopack').value = p.precioPack || '';
+  document.getElementById('p-unidadespack').value = p.unidadesPorPack || 6;
+  document.getElementById('p-preciocaja').value = p.precioCaja || '';
+  document.getElementById('p-unidadescaja').value = p.unidadesPorCaja || 12;
+  document.getElementById('p-preciopromo').value = p.precioPromo || '';
+  document.getElementById('p-unidadespromo').value = p.unidadesPromo || '';
+  document.getElementById('p-stockmin').value = p.stockMin;
+  document.getElementById('p-color').value = p.color;
+  imagenBase64 = p.imagen;
+  colorEditadoManualmente = true;
+  renderCapPreview();
+  document.getElementById('form-title').textContent = 'Editando: ' + p.nombre;
+  document.getElementById('btn-cancelar').style.display = 'inline-flex';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function eliminarProducto(id) {
+  if (!confirm('¿Eliminar este producto del catálogo? Esta acción no se puede deshacer.')) return;
+  Store.eliminarProducto(id);
+  renderCatalogo();
+  renderSelectAjuste();
+}
+
+function renderCatalogo() {
+  const productos = Store.getProductos();
+  document.getElementById('conteo').textContent = productos.length;
+  const cont = document.getElementById('catalogo');
+  if (!productos.length) {
+    cont.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      ${capSVG('#3a3024', 56)}
+      <p>Aún no hay productos. Agrega el primero con el formulario de la izquierda.</p>
+    </div>`;
+    return;
+  }
+  cont.innerHTML = productos.map(p => {
+    const bajo = p.stock <= p.stockMin;
+    return `
+    <div class="prod-card">
+      <span class="stock-badge ${bajo ? 'low' : ''}">${p.stock} u.</span>
+      <div class="top">
+        <div class="cap-wrap">${capSVG(p.color, 52)}${p.imagen ? `<img class="product-photo" src="${p.imagen}">` : ''}</div>
+        <div>
+          <div class="name">${p.nombre}</div>
+          <div class="cat">${p.categoria}</div>
+        </div>
+      </div>
+      <div class="price">${Store.formatMoney(p.precioVenta)} / u.
+        ${p.precioPack ? `<br><span style="font-size:.76rem;color:var(--muted);">${Store.formatMoney(p.precioPack)} / pack de ${p.unidadesPorPack}</span>` : ''}
+        ${p.precioCaja ? `<br><span style="font-size:.76rem;color:var(--muted);">${Store.formatMoney(p.precioCaja)} / caja de ${p.unidadesPorCaja}</span>` : ''}
+        ${p.precioPromo && p.unidadesPromo ? `<br><span style="font-size:.76rem;color:var(--muted);">${Store.formatMoney(p.precioPromo)} / promo de ${p.unidadesPromo}</span>` : ''}
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline btn-sm" style="flex:1;" onclick="editarProducto('${p.id}')">Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminarProducto('${p.id}')">Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderSelectAjuste() {
+  const sel = document.getElementById('ajuste-producto');
+  const productos = Store.getProductos();
+  sel.innerHTML = productos.map(p => `<option value="${p.id}">${p.nombre} — stock: ${p.stock}</option>`).join('')
+    || '<option value="">No hay productos</option>';
+}
+
+document.getElementById('btn-sumar').addEventListener('click', () => ajustar(1));
+document.getElementById('btn-restar').addEventListener('click', () => ajustar(-1));
+function ajustar(signo) {
+  const id = document.getElementById('ajuste-producto').value;
+  const cant = Math.abs(parseInt(document.getElementById('ajuste-cantidad').value, 10) || 0);
+  const costoInput = document.getElementById('ajuste-costo').value;
+  if (!id || !cant) return;
+
+  if (signo > 0 && costoInput !== '') {
+    // Ingreso con costo de compra: recalcula costo promedio y guarda historial
+    Store.registrarCompra(id, cant, parseFloat(costoInput));
+  } else {
+    Store.ajustarStock(id, signo * cant);
+  }
+
+  const p = Store.getProducto(id);
+  document.getElementById('ajuste-msg').textContent = signo > 0 && costoInput !== ''
+    ? `Compra registrada: ${p.nombre} ahora tiene ${p.stock} unidades, costo promedio S/ ${p.costo.toFixed(2)}.`
+    : `Stock actualizado: ${p.nombre} ahora tiene ${p.stock} unidades.`;
+
+  document.getElementById('ajuste-costo').value = '';
+  renderCatalogo();
+  renderSelectAjuste();
+  renderCompras();
+}
+
+function renderCompras() {
+  const compras = [...Store.getCompras()].reverse().slice(0, 30);
+  const tbody = document.getElementById('tabla-compras');
+  if (!compras.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);">Aún no registras compras con costo. Usa "Ingreso" con el campo de costo lleno para empezar a llevar este historial.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = compras.map(c => `
+    <tr>
+      <td>${Store.formatFecha(c.fecha)}</td>
+      <td>${c.nombreProducto}</td>
+      <td>${c.cantidad}</td>
+      <td class="mono">${Store.formatMoney(c.costoUnitario)}</td>
+      <td class="mono">${Store.formatMoney(c.costoPromedioResultante)}</td>
+    </tr>
+  `).join('');
+}
+
+onDatosCambiaron(() => { renderCatalogo(); renderSelectAjuste(); renderCompras(); });
+window.addEventListener('pageshow', () => { renderCatalogo(); renderSelectAjuste(); renderCompras(); });
+renderCatalogo();
+renderSelectAjuste();
+renderCompras();
+</script>
+</body>
+</html>
