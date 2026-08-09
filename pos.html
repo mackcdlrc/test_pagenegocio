@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Punto de venta · Tap & Stock</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="shell">
+
+  <div class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 100 100" width="26" height="26"><circle cx="50" cy="50" r="45" fill="#E8A33D"/></svg>
+      Tap &amp; Stock
+    </div>
+    <nav class="nav">
+      <a href="inventario.html">Inventario</a>
+      <a href="pos.html" class="active">Punto de venta</a>
+      <a href="finanzas.html">Finanzas</a>
+    </nav>
+  </div>
+
+  <div class="grid grid-2" style="align-items:start;grid-template-columns:1.6fr 1fr;">
+
+    <div class="panel">
+      <h2 style="margin-top:0;">Selecciona productos</h2>
+      <div class="field" style="max-width:320px;">
+        <input id="buscador" placeholder="Buscar por nombre o categoría...">
+      </div>
+      <div id="grid-productos" class="product-grid" style="margin-top:14px;"></div>
+    </div>
+
+    <div class="panel" style="position:sticky;top:20px;">
+      <h2 style="margin-top:0;">Venta actual</h2>
+      <div id="carrito"></div>
+
+      <div class="total-row">
+        <span>Total</span>
+        <span class="amount" id="total-venta">S/ 0.00</span>
+      </div>
+
+      <div class="field" style="margin-top:16px;">
+        <label for="metodo-pago">Método de pago</label>
+        <select id="metodo-pago">
+          <option>Efectivo</option>
+          <option>Yape</option>
+          <option>Plin</option>
+          <option>Tarjeta</option>
+          <option>Transferencia</option>
+        </select>
+      </div>
+
+      <button id="btn-cobrar" class="btn btn-amber" style="width:100%;margin-top:8px;" disabled>Cobrar</button>
+      <button id="btn-vaciar" class="btn btn-outline" style="width:100%;margin-top:8px;">Vaciar venta</button>
+    </div>
+  </div>
+
+  <p class="footer-note">Tap &amp; Stock — punto de venta para Punto Escolar · el stock se descuenta al cobrar</p>
+</div>
+
+<!-- Modal ticket -->
+<div id="modal-ticket" class="modal-overlay" style="display:none;">
+  <div class="modal-box">
+    <div id="ticket-contenido" class="ticket"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-amber" style="flex:1;" onclick="window.print()">Imprimir</button>
+      <button class="btn btn-outline" style="flex:1;" onclick="cerrarTicketYNuevaVenta()">Nueva venta</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/store.js"></script>
+<script>
+let carrito = []; // [{productoId, nombre, color, precioUnit, costo, cantidad}]
+
+function renderProductos(filtro = '') {
+  const productos = Store.getProductos().filter(p =>
+    p.nombre.toLowerCase().includes(filtro.toLowerCase()) ||
+    p.categoria.toLowerCase().includes(filtro.toLowerCase())
+  );
+  const cont = document.getElementById('grid-productos');
+  if (!Store.getProductos().length) {
+    cont.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">
+      ${capSVG('#3a3024', 56)}
+      <p>No hay productos cargados todavía.<br>Ve a <a href="inventario.html" style="color:var(--amber);">Inventario</a> para agregar tu catálogo.</p>
+    </div>`;
+    return;
+  }
+  cont.innerHTML = productos.map(p => {
+    const agotado = p.stock <= 0;
+    return `
+    <div class="prod-card ${agotado ? 'agotado' : ''}" onclick="${agotado ? '' : `agregarAlCarrito('${p.id}')`}">
+      <span class="stock-badge ${p.stock <= p.stockMin ? 'low' : ''}">${agotado ? 'Agotado' : p.stock + ' u.'}</span>
+      <div class="top">
+        <div class="cap-wrap">${capSVG(p.color, 48)}${p.imagen ? `<img class="product-photo" src="${p.imagen}">` : ''}</div>
+        <div>
+          <div class="name">${p.nombre}</div>
+          <div class="cat">${p.categoria}</div>
+        </div>
+      </div>
+      <div class="price">${Store.formatMoney(p.precioVenta)} / u.
+        ${p.precioPack ? `<br><span style="font-size:.7rem;color:var(--muted);">${Store.formatMoney(p.precioPack)} / pack de ${p.unidadesPorPack}</span>` : ''}
+        ${p.precioCaja ? `<br><span style="font-size:.7rem;color:var(--muted);">${Store.formatMoney(p.precioCaja)} / caja de ${p.unidadesPorCaja}</span>` : ''}
+        ${p.precioPromo && p.unidadesPromo ? `<br><span style="font-size:.7rem;color:var(--muted);">${Store.formatMoney(p.precioPromo)} / promo de ${p.unidadesPromo}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('buscador').addEventListener('input', (e) => renderProductos(e.target.value));
+
+function agregarAlCarrito(id) {
+  const p = Store.getProducto(id);
+  if (!p || p.stock <= 0) return;
+  const enCarrito = carrito.find(i => i.productoId === id);
+  const cantidadActual = enCarrito ? enCarrito.cantidad : 0;
+  if (cantidadActual + 1 > p.stock) {
+    alert(`Solo quedan ${p.stock} unidades de ${p.nombre}.`);
+    return;
+  }
+  if (enCarrito) {
+    enCarrito.cantidad++;
+  } else {
+    carrito.push({
+      productoId: p.id, nombre: p.nombre, color: p.color,
+      precioUnit: p.precioVenta, costo: p.costo, cantidad: 1,
+      precioPack: p.precioPack || 0, unidadesPorPack: p.unidadesPorPack || 6,
+      precioCaja: p.precioCaja || 0, unidadesPorCaja: p.unidadesPorCaja || 12,
+      precioPromo: p.precioPromo || 0, unidadesPromo: p.unidadesPromo || 0
+    });
+  }
+  renderCarrito();
+}
+
+function cambiarCantidad(id, delta) {
+  const item = carrito.find(i => i.productoId === id);
+  if (!item) return;
+  const p = Store.getProducto(id);
+  const nueva = item.cantidad + delta;
+  if (nueva <= 0) {
+    carrito = carrito.filter(i => i.productoId !== id);
+  } else if (p && nueva > p.stock) {
+    alert(`Solo quedan ${p.stock} unidades de ${p.nombre}.`);
+    return;
+  } else {
+    item.cantidad = nueva;
+  }
+  renderCarrito();
+}
+
+function cambiarCantidadDirecta(id, valor) {
+  const item = carrito.find(i => i.productoId === id);
+  if (!item) return;
+  const p = Store.getProducto(id);
+  const nueva = Math.max(0, parseInt(valor, 10) || 0);
+  if (nueva <= 0) {
+    carrito = carrito.filter(i => i.productoId !== id);
+  } else if (p && nueva > p.stock) {
+    alert(`Solo quedan ${p.stock} unidades de ${p.nombre}.`);
+    item.cantidad = p.stock;
+  } else {
+    item.cantidad = nueva;
+  }
+  renderCarrito();
+}
+
+function quitarDelCarrito(id) {
+  carrito = carrito.filter(i => i.productoId !== id);
+  renderCarrito();
+}
+
+function renderCarrito() {
+  const cont = document.getElementById('carrito');
+  const total = carrito.reduce((s, i) => s + Store.calcularVentaConEmpaques(i.cantidad, i.precioUnit, empaquesDe(i)).subtotal, 0);
+  document.getElementById('total-venta').textContent = Store.formatMoney(total);
+  document.getElementById('btn-cobrar').disabled = carrito.length === 0;
+
+  if (!carrito.length) {
+    cont.innerHTML = `<div class="empty-state">${capSVG('#3a3024', 44)}<p>Toca un producto para agregarlo a la venta.</p></div>`;
+    return;
+  }
+  cont.innerHTML = carrito.map(i => {
+    const { subtotal, desglose } = Store.calcularVentaConEmpaques(i.cantidad, i.precioUnit, empaquesDe(i));
+    const tienePromo = i.precioPack || i.precioCaja || i.precioPromo;
+    return `
+    <div class="cart-item">
+      <div class="cap-wrap" style="width:34px;">${capSVG(i.color, 34)}</div>
+      <div class="info">
+        <div style="font-weight:600;">${i.nombre}</div>
+        <div class="hint mono">${tienePromo ? desglose : Store.formatMoney(i.precioUnit) + ' c/u'}</div>
+      </div>
+      <div class="qty-ctrl">
+        <button onclick="cambiarCantidad('${i.productoId}',-1)">−</button>
+        <input type="number" min="1" class="mono" value="${i.cantidad}"
+          style="width:48px;text-align:center;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:3px 2px;"
+          onchange="cambiarCantidadDirecta('${i.productoId}', this.value)">
+        <button onclick="cambiarCantidad('${i.productoId}',1)">+</button>
+      </div>
+      <div class="mono" style="width:70px;text-align:right;">${Store.formatMoney(subtotal)}</div>
+      <button class="btn btn-danger btn-sm" onclick="quitarDelCarrito('${i.productoId}')">×</button>
+    </div>
+  `;
+  }).join('');
+}
+
+document.getElementById('btn-vaciar').addEventListener('click', () => {
+  if (!carrito.length) return;
+  if (confirm('¿Vaciar la venta actual?')) { carrito = []; renderCarrito(); }
+});
+
+document.getElementById('btn-cobrar').addEventListener('click', () => {
+  if (!carrito.length) return;
+  // valida stock una última vez antes de cobrar
+  for (const item of carrito) {
+    const p = Store.getProducto(item.productoId);
+    if (!p || p.stock < item.cantidad) {
+      alert(`Stock insuficiente para ${item.nombre}. Actualiza la venta.`);
+      renderProductos(document.getElementById('buscador').value);
+      renderCarrito();
+      return;
+    }
+  }
+  const itemsConSubtotal = carrito.map(i => {
+    const { subtotal, desglose } = Store.calcularVentaConEmpaques(i.cantidad, i.precioUnit, empaquesDe(i));
+    return { ...i, subtotal, desglose };
+  });
+  const total = itemsConSubtotal.reduce((s, i) => s + i.subtotal, 0);
+  const costoTotal = carrito.reduce((s, i) => s + i.costo * i.cantidad, 0);
+  const numeroTicket = Store.siguienteNumeroTicket();
+  const venta = {
+    id: Store.uid(),
+    numeroTicket,
+    fecha: new Date().toISOString(),
+    items: itemsConSubtotal,
+    total,
+    costoTotal,
+    ganancia: total - costoTotal,
+    metodoPago: document.getElementById('metodo-pago').value,
+    estado: 'activo'
+  };
+  carrito.forEach(i => Store.ajustarStock(i.productoId, -i.cantidad));
+  Store.registrarVenta(venta);
+  mostrarTicket(venta);
+  carrito = [];
+  renderCarrito();
+  renderProductos(document.getElementById('buscador').value);
+});
+
+function mostrarTicket(venta) {
+  const cfg = Store.getConfig();
+  const nombreNegocio = cfg.nombreNegocio || 'Punto Escolar — Cervezas';
+  const filas = venta.items.map(i => `
+    <div class="row"><span>${i.cantidad}x ${i.nombre}${(i.precioPack || i.precioCaja || i.precioPromo) ? ` (${i.desglose})` : ''}</span><span>${Store.formatMoney(i.subtotal ?? i.precioUnit * i.cantidad)}</span></div>
+  `).join('');
+  document.getElementById('ticket-contenido').innerHTML = `
+    <h3>${nombreNegocio}</h3>
+    <p class="center">Ticket N° ${String(venta.numeroTicket).padStart(5, '0')}</p>
+    <p class="center">${Store.formatFecha(venta.fecha)}</p>
+    <hr>
+    ${filas}
+    <hr>
+    <div class="row" style="font-weight:700;"><span>TOTAL</span><span>${Store.formatMoney(venta.total)}</span></div>
+    <div class="row"><span>Pago</span><span>${venta.metodoPago}</span></div>
+    <hr>
+    <p class="center">¡Gracias por su compra!</p>
+  `;
+  document.getElementById('modal-ticket').style.display = 'flex';
+}
+
+function cerrarTicketYNuevaVenta() {
+  document.getElementById('modal-ticket').style.display = 'none';
+}
+
+onDatosCambiaron(() => renderProductos(document.getElementById('buscador').value));
+window.addEventListener('pageshow', () => renderProductos(document.getElementById('buscador').value));
+renderProductos();
+renderCarrito();
+</script>
+</body>
+</html>
